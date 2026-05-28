@@ -1,0 +1,80 @@
+research_name: Web3 竞品产品与视觉趋势 AI 研究
+audience: 平面设计部门主管
+own_brand: MEXC
+own_brand_role: 我方品牌基准，用于判断可跟进方向、品牌冲突和同质化风险，不要和友商放在同一层比较。
+
+# 报告体量约束：5 分钟阅读时间（中文 ≈ 1200 字以内）
+report_budget:
+  target_read_minutes: 5
+  max_words_chinese: 1200
+  writing_principle: 宁可少而准；能用一句话讲清楚就不要写一段；能合并的章节就合并；不重复表达。
+
+competitors:
+  - Binance
+  - OKX
+  - Bybit
+  - Coinbase
+  - Bitget
+  - KuCoin
+  - Gate.io
+
+research_scope:
+  product_topics:
+    - Earn / 理财 / 收益产品
+    - Launchpool / Launchpad / 新币上线
+    - Airdrop / 空投 / 奖励中心
+    - Web3 Wallet / DEX / NFT / On-chain
+    - Trading Bot / Copy Trading / 跟单
+    - App / Web 新功能
+    - 积分体系 / 任务中心 / 新手活动
+  visual_topics:
+    - 活动 KV
+    - 产品功能介绍页首屏
+    - App / Web 推广图
+    - 社媒宣传图
+    - Blog / Academy 封面图
+    - 交易赛 / 节日 / 空投 / 新币上线视觉
+
+search_policy:
+  recency_days: 2
+  fallback_recency_days: 7
+  language: 中英文都可以，优先英文官方来源
+  source_policy: 不限制固定来源，优先官方渠道，其次可信媒体、官方博客、公告、社媒、图片搜索结果。
+  image_policy: 不批量下载图片。浏览时观察即可；只有当某张图能支撑关键判断时，才保存截图、图片链接或报告中引用。
+  source_quality:
+    - 一级证据：官方活动页、官方公告、官方 Blog / Academy、官方社媒原帖
+    - 二级证据：可信行业媒体、PR 新闻稿、交易所帮助中心
+    - 三级证据：图片搜索结果、社区转发、非官方整理页；只能作为辅助，不作为核心结论唯一依据
+
+evidence_rules:
+  # 后台研究阶段仍要看够样本量，避免结论失真，但报告里只呈现精华
+  minimum_total_sources: 10
+  minimum_official_sources: 5
+  max_key_visual_evidence: 5
+  # 报告中只呈现 3 条最关键的发现
+  max_findings: 3
+  # 每条发现只写 5 个字段，去掉来源等级和置信度
+  each_finding_requires:
+    - 竞品名称
+    - 一句话产品逻辑判断
+    - 一句话视觉风格判断
+    - 一句话 MEXC 启发
+    - 证据链接
+
+analysis_requirements:
+  continuity_policy:
+    mode: incremental
+    instruction: 每天必须先读取上一份正式报告作为基线；当天报告里把"变化信号"直接嵌入 TL;DR 和重点发现，不要单独写"相对上一期变化"章节，避免重复表达。
+    compare_dimensions:
+      - 产品主推方向变化
+      - 活动机制变化
+      - 视觉风格变化
+      - 高频元素变化
+      - MEXC 可跟进建议变化
+  must_answer:
+    - 今天/最近竞品产品主推逻辑有没有变化？
+    - 今天/最近竞品视觉风格有没有变化？
+    - 视觉变化和产品逻辑变化之间有什么关系？
+    - 哪些方向 MEXC 可以跟进？
+    - 哪些方向容易同质化或与 MEXC 品牌冲突？
+  report_tone: 像资深设计策略负责人写给平面设计主管，不要像技术爬虫日志；语气克制、信息密度高、不要废话。

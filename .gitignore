@@ -1,0 +1,14 @@
+.env
+.venv*/
+__pycache__/
+*.pyc
+.DS_Store
+node_modules/
+data/research.sqlite3
+data/images/
+data/agent_runs/
+data/lark/
+data/evidence_packets/
+!data/images/.gitkeep
+!reports/.gitkeep
+# 报告本身要进仓库（workflow 会 commit 回来），不要 ignore

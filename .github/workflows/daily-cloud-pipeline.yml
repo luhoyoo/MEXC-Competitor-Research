@@ -1,0 +1,117 @@
+name: Daily Cloud Pipeline
+
+# 每天云端跑完整流程：生成任务单 → 调 OpenAI 写报告 → commit 回仓库 → 推 Lark 群
+# 触发时间：北京 10:00 = UTC 02:00。
+# OpenAI Responses API + web_search 平均 3-8 分钟出报告，群消息一般在 10:10 前送达。
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      report_date:
+        description: "报告日期，YYYY-MM-DD；不填默认用 Asia/Shanghai 当天"
+        required: false
+        default: ""
+      skip_research:
+        description: "true=跳过 OpenAI 研究步骤，仅推群（用于测试）"
+        required: false
+        default: "false"
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml openai requests
+
+      - name: Resolve report date
+        id: date
+        run: |
+          INPUT_DATE="${{ github.event.inputs.report_date }}"
+          if [ -z "$INPUT_DATE" ]; then
+            INPUT_DATE=$(TZ=Asia/Shanghai date +%F)
+          fi
+          echo "report_date=$INPUT_DATE" >> "$GITHUB_OUTPUT"
+          echo "report_path=reports/${INPUT_DATE}-web3-product-visual-trend-report.md" >> "$GITHUB_OUTPUT"
+          echo "brief_path=reports/${INPUT_DATE}-codex-ai-research-brief.md" >> "$GITHUB_OUTPUT"
+          echo "Will produce: reports/${INPUT_DATE}-web3-product-visual-trend-report.md"
+
+      - name: Generate today's research brief
+        if: github.event.inputs.skip_research != 'true'
+        run: |
+          PYTHONPATH=src python -m web3_visual_research.cli brief --date "${{ steps.date.outputs.report_date }}"
+
+      - name: Run cloud research agent (OpenAI)
+        if: github.event.inputs.skip_research != 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_RESEARCH_MODEL: ${{ vars.OPENAI_RESEARCH_MODEL || 'gpt-4.1-mini' }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::error::OPENAI_API_KEY 未配置。请到 Settings → Secrets 添加，跳过研究阶段会失败。"
+            exit 1
+          fi
+          PYTHONPATH=src python -m web3_visual_research.cloud_research_agent --date "${{ steps.date.outputs.report_date }}"
+
+      - name: Commit generated reports
+        if: github.event.inputs.skip_research != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reports/
+          if git diff --staged --quiet; then
+            echo "没有新增或变更的报告文件，跳过 commit"
+          else
+            git commit -m "chore(report): auto-generate ${{ steps.date.outputs.report_date }} report"
+            git push
+          fi
+
+      - name: Verify report exists
+        id: verify
+        run: |
+          if [ -f "${{ steps.date.outputs.report_path }}" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            wc -c "${{ steps.date.outputs.report_path }}"
+          else
+            echo "::error::没找到 ${{ steps.date.outputs.report_path }}，无法推群"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Push to Lark group
+        if: steps.verify.outputs.found == 'true'
+        env:
+          LARK_GROUP_WEBHOOK: ${{ secrets.LARK_GROUP_WEBHOOK }}
+          LARK_GROUP_WEBHOOK_SECRET: ${{ secrets.LARK_GROUP_WEBHOOK_SECRET }}
+        run: |
+          if [ -z "$LARK_GROUP_WEBHOOK" ]; then
+            echo "::error::LARK_GROUP_WEBHOOK 未配置"
+            exit 1
+          fi
+          PYTHONPATH=src python -m web3_visual_research.lark_chat_notifier \
+            --report "${{ steps.date.outputs.report_path }}" \
+            --date "${{ steps.date.outputs.report_date }}" \
+            --mode full
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-${{ steps.date.outputs.report_date }}
+          path: |
+            reports/
+            data/lark/
+          if-no-files-found: ignore

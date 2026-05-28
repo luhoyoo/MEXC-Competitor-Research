@@ -1,0 +1,22 @@
+lark:
+  enabled: true
+  cli_command: lark-cli
+  doc_title_prefix: Web3 竞品产品与视觉趋势日报
+  # 可选：如果你的团队要求发到指定知识库/文件夹，后续在这里补充 token。
+  # folder_token:
+  # wiki_space_id:
+  output_dir: data/lark
+
+  # 群机器人推送配置（自定义机器人 Webhook）
+  webhook:
+    enabled: true
+    # 群消息卡片标题前缀，最终格式："{title_prefix} · 2026-05-29"
+    title_prefix: Web3 竞品产品与视觉趋势日报
+    # 卡片头部颜色：blue / turquoise / green / yellow / orange / red / carmine / violet / purple / indigo / grey / wathet
+    card_template: blue
+    # 卡片底部按钮文案
+    button_text: 查看完整报告
+    # Webhook URL 通过环境变量注入，避免明文泄漏
+    env_url: LARK_GROUP_WEBHOOK
+    # 可选：群机器人开启了"签名校验"才需要填这个密钥环境变量名
+    env_secret: LARK_GROUP_WEBHOOK_SECRET

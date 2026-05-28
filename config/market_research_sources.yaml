@@ -1,0 +1,68 @@
+competitors:
+  - name: Binance
+    slug: binance
+    official_site: https://www.binance.com/
+    social:
+      x: https://x.com/binance
+      instagram: https://www.instagram.com/binance/
+    product_pages:
+      - name: Earn
+        url: https://www.binance.com/en/earn
+        topic: 理财收益产品
+      - name: Launchpool
+        url: https://www.binance.com/en/launchpool
+        topic: 新币挖矿 / 上新活动
+      - name: Web3 Wallet
+        url: https://www.binance.com/en/web3wallet
+        topic: Web3 钱包
+    activity_pages:
+      - name: Promotions
+        url: https://www.binance.com/en/activity
+        topic: 活动中心
+
+  - name: OKX
+    slug: okx
+    official_site: https://www.okx.com/
+    social:
+      x: https://x.com/okx
+      instagram: https://www.instagram.com/okx_official/
+    product_pages:
+      - name: Web3 Wallet
+        url: https://www.okx.com/web3
+        topic: Web3 钱包 / DEX / NFT
+      - name: Earn
+        url: https://www.okx.com/earn
+        topic: 理财收益产品
+      - name: Trading Bot
+        url: https://www.okx.com/trading-bot
+        topic: 交易机器人
+    activity_pages:
+      - name: Campaigns
+        url: https://www.okx.com/campaigns
+        topic: 活动中心
+
+  - name: Bybit
+    slug: bybit
+    official_site: https://www.bybit.com/
+    social:
+      x: https://x.com/Bybit_Official
+      instagram: https://www.instagram.com/bybit_official/
+    product_pages:
+      - name: Earn
+        url: https://www.bybit.com/en/earn/
+        topic: 理财收益产品
+      - name: Launchpad
+        url: https://www.bybit.com/en/launchpad/
+        topic: 新币上线 / Launchpad
+      - name: Trading Bot
+        url: https://www.bybit.com/en/trading-bot/
+        topic: 交易机器人
+    activity_pages:
+      - name: Promotions
+        url: https://www.bybit.com/en/promo/
+        topic: 活动中心
+
+analysis_focus:
+  audience: 平面设计部门主管
+  goal: 收集友商产品功能介绍页和活动视觉情况，判断产品包装、活动打法、页面视觉和可借鉴方向。
+  output_style: 设计分析语言，不写技术爬虫过程，不做行情或投资判断。

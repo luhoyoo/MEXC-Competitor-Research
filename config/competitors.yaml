@@ -1,0 +1,24 @@
+competitors:
+  - name: Binance
+    slug: binance
+    homepage: https://www.binance.com/
+    blog: https://www.binance.com/en/blog
+    announcement: https://www.binance.com/en/support/announcement
+    x: https://x.com/binance
+    instagram: https://www.instagram.com/binance/
+
+  - name: OKX
+    slug: okx
+    homepage: https://www.okx.com/
+    blog: https://www.okx.com/learn
+    announcement: https://www.okx.com/help/section/announcements-latest-announcements
+    x: https://x.com/okx
+    instagram: https://www.instagram.com/okx_official/
+
+  - name: Bybit
+    slug: bybit
+    homepage: https://www.bybit.com/
+    blog: https://learn.bybit.com/
+    announcement: https://announcements.bybit.com/
+    x: https://x.com/Bybit_Official
+    instagram: https://www.instagram.com/bybit_official/
