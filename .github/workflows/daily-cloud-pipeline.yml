@@ -4,8 +4,9 @@ name: Daily Cloud Pipeline
 # 触发时间：北京 10:00 = UTC 02:00。
 
 on:
-  schedule:
-    - cron: "0 2 * * *"
+  # 自动调度暂时关闭，等 OPENAI_API_KEY 配好后再放开下面 3 行
+  # schedule:
+  #   - cron: "0 2 * * *"   # 北京时间 10:00 = UTC 02:00
   workflow_dispatch:
     inputs:
       report_date:
