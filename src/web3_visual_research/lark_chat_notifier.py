@@ -1,10 +1,9 @@
 """把日报推送到飞书/Lark 群组的自定义机器人 Webhook。
 
-功能：
-- 默认模式：把整份 Markdown 报告内容塞进卡片（5 分钟阅读量内）
-- summary 模式：只发 TL;DR 三行
-- 卡片底部带「查看完整报告」按钮，跳转到飞书文档或 GitHub 链接
-- 支持 Webhook 签名（可选，由群机器人配置决定）
+群消息样式：
+- 卡片头部：报告标题 + 日期
+- 卡片正文：TL;DR 三行（30 秒读完）
+- 卡片底部：「查看完整报告」按钮 → 跳转到 Lark 云文档
 
 环境变量：
 - LARK_GROUP_WEBHOOK         Webhook URL（必填）
@@ -28,9 +27,6 @@ from urllib import error, request
 
 from .config import load_yaml
 
-# Lark/飞书卡片单个 lark_md 元素文本上限约 30000 字符，留出余量
-MAX_CARD_BODY_CHARS = 28000
-
 
 def notify_group(
     report_path: Path,
@@ -38,13 +34,11 @@ def notify_group(
     run_date: str | None = None,
     doc_url: str | None = None,
     fallback_url: str | None = None,
-    mode: str = "full",
 ) -> dict[str, Any]:
-    """把日报推送到群机器人。返回飞书接口的响应 payload。
+    """把日报 TL;DR 推送到群机器人。返回飞书接口的响应 payload。
 
-    mode:
-        - full    : 卡片包含 TL;DR + 完整报告内容（默认）
-        - summary : 卡片只包含 TL;DR 三行
+    doc_url     : Lark 云文档链接，按钮优先跳这个
+    fallback_url: 备用链接（如 GitHub），doc_url 缺失时用
     """
     report_date = run_date or date.today().isoformat()
     config = load_yaml(config_path.read_text(encoding="utf-8")).get("lark", {})
@@ -71,26 +65,18 @@ def notify_group(
 
     markdown = report_path.read_text(encoding="utf-8")
     title_prefix = webhook_cfg.get("title_prefix", "Web3 竞品产品与视觉趋势日报")
+    button_text = webhook_cfg.get("button_text", "查看完整报告")
     template = webhook_cfg.get("card_template", "blue")
-
-    parsed_title, body = extract_title_and_body(markdown)
-    card_title = f"{title_prefix} · {report_date}"
+    link_url = doc_url or fallback_url
     tldr = extract_tldr(markdown)
 
-    if mode == "summary":
-        card = build_summary_card(
-            title=card_title,
-            tldr=tldr,
-            template=template,
-        )
-    else:
-        card = build_full_card(
-            title=card_title,
-            tldr=tldr,
-            body_markdown=body,
-            template=template,
-        )
-
+    card = build_card(
+        title=f"{title_prefix} · {report_date}",
+        tldr=tldr,
+        button_text=button_text,
+        button_url=link_url,
+        template=template,
+    )
     payload: dict[str, Any] = {"msg_type": "interactive", "card": card}
 
     if secret:
@@ -107,7 +93,9 @@ def notify_group(
         json.dumps(
             {
                 "report_path": str(report_path.resolve()),
-                "mode": mode,
+                "doc_url": doc_url,
+                "fallback_url": fallback_url,
+                "link_used": link_url,
                 "response": response,
             },
             ensure_ascii=False,
@@ -124,30 +112,7 @@ def notify_group(
 # ---------- 报告解析 ----------
 
 
-def extract_title_and_body(markdown: str) -> tuple[str | None, str]:
-    """把第一个 H1 标题和正文分开。"""
-    lines = markdown.splitlines()
-    title: str | None = None
-    body_start = 0
-    for i, line in enumerate(lines):
-        if line.startswith("# "):
-            title = line[2:].strip()
-            body_start = i + 1
-            break
-    body = "\n".join(lines[body_start:]).strip()
-    return title, body
-
-
 def extract_tldr(markdown: str) -> dict[str, str]:
-    """从 Markdown 报告里抓 TL;DR 三行。
-
-    匹配新版报告格式：
-        - 🎨 视觉：...
-        - 📦 产品：...
-        - ✅ MEXC 行动：...
-
-    任何字段抓不到都返回占位提示，不会让推送中断。
-    """
     visual = _find_line(markdown, r"🎨\s*视觉[:：]\s*(.+)")
     product = _find_line(markdown, r"📦\s*产品[:：]\s*(.+)")
     action = _find_line(markdown, r"✅\s*MEXC\s*行动[:：]\s*(.+)")
@@ -167,70 +132,58 @@ def _find_line(text: str, pattern: str) -> str | None:
     return line
 
 
-def truncate_body(body: str, limit: int = MAX_CARD_BODY_CHARS) -> str:
-    if len(body) <= limit:
-        return body
-    return body[: limit - 30].rstrip() + "\n\n…（内容过长已截断，请点按钮看完整报告）"
-
-
 # ---------- 卡片构造 ----------
 
 
-def build_full_card(
+def build_card(
     title: str,
     tldr: dict[str, str],
-    body_markdown: str,
+    button_text: str,
+    button_url: str | None,
     template: str = "blue",
 ) -> dict[str, Any]:
-    """完整卡片：顶部 TL;DR 30 秒读完 + 分隔线 + 完整报告正文。无外部链接。"""
-    tldr_block = (
-        "**🎯 TL;DR · 30 秒读完**\n\n"
-        f"**🎨 视觉**：{tldr['visual']}\n\n"
-        f"**📦 产品**：{tldr['product']}\n\n"
-        f"**✅ MEXC 行动**：{tldr['action']}"
-    )
-    body = truncate_body(body_markdown.strip(), MAX_CARD_BODY_CHARS - len(tldr_block) - 200)
-
-    elements: list[dict[str, Any]] = [
-        {
-            "tag": "div",
-            "text": {"tag": "lark_md", "content": tldr_block},
-        },
-        {"tag": "hr"},
-        {
-            "tag": "div",
-            "text": {"tag": "lark_md", "content": f"**📄 完整报告**\n\n{body}"},
-        },
-    ]
-    return {
-        "config": {"wide_screen_mode": True},
-        "header": {
-            "title": {"tag": "plain_text", "content": title},
-            "template": template,
-        },
-        "elements": elements,
-    }
-
-
-def build_summary_card(
-    title: str,
-    tldr: dict[str, str],
-    template: str = "blue",
-) -> dict[str, Any]:
-    """精简卡片：仅 TL;DR 三行。"""
+    """TL;DR 卡片：30 秒读完 + 跳转按钮。"""
     elements: list[dict[str, Any]] = [
         {
             "tag": "div",
             "text": {
                 "tag": "lark_md",
                 "content": (
-                    f"**🎨 视觉**\n{tldr['visual']}\n\n"
-                    f"**📦 产品**\n{tldr['product']}\n\n"
-                    f"**✅ MEXC 行动**\n{tldr['action']}"
+                    "**🎯 TL;DR · 30 秒读完**\n\n"
+                    f"**🎨 视觉**：{tldr['visual']}\n\n"
+                    f"**📦 产品**：{tldr['product']}\n\n"
+                    f"**✅ MEXC 行动**：{tldr['action']}"
                 ),
             },
         }
     ]
+    if button_url:
+        elements.append({"tag": "hr"})
+        elements.append(
+            {
+                "tag": "action",
+                "actions": [
+                    {
+                        "tag": "button",
+                        "text": {"tag": "plain_text", "content": button_text},
+                        "type": "primary",
+                        "url": button_url,
+                    }
+                ],
+            }
+        )
+    else:
+        elements.append(
+            {
+                "tag": "note",
+                "elements": [
+                    {
+                        "tag": "plain_text",
+                        "content": "⚠️ Lark 文档生成失败，请联系管理员",
+                    }
+                ],
+            }
+        )
     return {
         "config": {"wide_screen_mode": True},
         "header": {
@@ -239,17 +192,6 @@ def build_summary_card(
         },
         "elements": elements,
     }
-
-
-# 兼容旧函数名
-def build_card(
-    title: str,
-    tldr: dict[str, str],
-    button_text: str = "",  # noqa: ARG001 - 保留签名兼容
-    button_url: str | None = None,  # noqa: ARG001
-    template: str = "blue",
-) -> dict[str, Any]:
-    return build_summary_card(title, tldr, template)
 
 
 # ---------- 签名 + 发送 ----------
@@ -291,25 +233,22 @@ def post_webhook(url: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="把日报推送到飞书/Lark 群机器人")
+    parser = argparse.ArgumentParser(description="把日报 TL;DR 推送到飞书/Lark 群")
     parser.add_argument("--report", required=True, help="Markdown 报告路径")
-    parser.add_argument("--config", default="config/lark_publish.yaml", help="配置文件")
-    parser.add_argument("--date", dest="run_date", help="日期，格式 YYYY-MM-DD")
-    parser.add_argument(
-        "--mode",
-        choices=["full", "summary"],
-        default="full",
-        help="full=TL;DR + 完整报告（默认），summary=仅 TL;DR",
-    )
+    parser.add_argument("--config", default="config/lark_publish.yaml")
+    parser.add_argument("--date", dest="run_date")
+    parser.add_argument("--doc-url", dest="doc_url", help="Lark 文档 URL")
+    parser.add_argument("--fallback-url", dest="fallback_url", help="备用 URL")
     args = parser.parse_args()
 
     response = notify_group(
         report_path=Path(args.report),
         config_path=Path(args.config),
         run_date=args.run_date,
-        mode=args.mode,
+        doc_url=args.doc_url,
+        fallback_url=args.fallback_url,
     )
-    print(f"[done] 群消息已推送（mode={args.mode}）：{response}")
+    print(f"[done] 群消息已推送：{response}")
 
 
 if __name__ == "__main__":

@@ -91,20 +91,44 @@ jobs:
             exit 1
           fi
 
+      - name: Publish to Lark Doc
+        id: doc
+        if: steps.verify.outputs.found == 'true'
+        env:
+          LARK_APP_ID: ${{ secrets.LARK_APP_ID }}
+          LARK_APP_SECRET: ${{ secrets.LARK_APP_SECRET }}
+          LARK_DOMAIN: ${{ vars.LARK_DOMAIN || 'open.larksuite.com' }}
+          LARK_DOC_FOLDER_TOKEN: ${{ secrets.LARK_DOC_FOLDER_TOKEN }}
+        run: |
+          if [ -z "$LARK_APP_ID" ] || [ -z "$LARK_APP_SECRET" ]; then
+            echo "::warning::LARK_APP_ID/LARK_APP_SECRET 未配置，按钮将退回 GitHub 链接"
+            echo "doc_url=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          DOC_URL=$(PYTHONPATH=src python -m web3_visual_research.lark_doc_publisher \
+            --report "${{ steps.date.outputs.report_path }}" \
+            --title "Web3 竞品产品与视觉趋势日报 · ${{ steps.date.outputs.report_date }}")
+          echo "Lark 文档：$DOC_URL"
+          echo "doc_url=$DOC_URL" >> "$GITHUB_OUTPUT"
+
       - name: Push to Lark group
         if: steps.verify.outputs.found == 'true'
         env:
           LARK_GROUP_WEBHOOK: ${{ secrets.LARK_GROUP_WEBHOOK }}
           LARK_GROUP_WEBHOOK_SECRET: ${{ secrets.LARK_GROUP_WEBHOOK_SECRET }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           if [ -z "$LARK_GROUP_WEBHOOK" ]; then
             echo "::error::LARK_GROUP_WEBHOOK 未配置"
             exit 1
           fi
-          PYTHONPATH=src python -m web3_visual_research.lark_chat_notifier \
-            --report "${{ steps.date.outputs.report_path }}" \
-            --date "${{ steps.date.outputs.report_date }}" \
-            --mode full
+          DOC_URL="${{ steps.doc.outputs.doc_url }}"
+          FALLBACK_URL="https://github.com/${GITHUB_REPOSITORY}/blob/main/${{ steps.date.outputs.report_path }}"
+          ARGS=(--report "${{ steps.date.outputs.report_path }}" --date "${{ steps.date.outputs.report_date }}" --fallback-url "$FALLBACK_URL")
+          if [ -n "$DOC_URL" ]; then
+            ARGS+=(--doc-url "$DOC_URL")
+          fi
+          PYTHONPATH=src python -m web3_visual_research.lark_chat_notifier "${ARGS[@]}"
 
       - name: Upload artifacts
         if: always()
