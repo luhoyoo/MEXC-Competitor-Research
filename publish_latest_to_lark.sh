@@ -18,36 +18,14 @@ if [ -f ".env" ]; then
   set +a
 fi
 
-DOC_URL=""
-DOC_TITLE="Web3 竞品产品与视觉趋势日报 · $REPORT_DATE"
+# 推群消息（按钮跳到 GitHub 上的 markdown 报告）
+GH_REPO="${GITHUB_REPO:-luhoyoo/MEXC-Competitor-Research}"
+REPORT_URL="https://github.com/${GH_REPO}/blob/main/${REPORT_PATH}"
 
-if [ -n "$LARK_APP_ID" ] && [ -n "$LARK_APP_SECRET" ]; then
-  echo "1/2 正在创建 Lark 云文档..."
-  DOC_URL=$(PYTHONPATH=src .venv/bin/python -m web3_visual_research.lark_doc_publisher \
-      --report "$REPORT_PATH" \
-      --title "$DOC_TITLE" 2>&1) || {
-    echo "❌ Lark 文档创建失败："
-    echo "$DOC_URL"
-    DOC_URL=""
-  }
-  if [ -n "$DOC_URL" ] && [[ "$DOC_URL" == https://* ]]; then
-    echo "   ✔ 文档已创建：$DOC_URL"
-  else
-    DOC_URL=""
-    echo "   ⚠ 没拿到文档 URL，按钮将退回到本地 markdown 提示"
-  fi
-else
-  echo "⚠ 未配置 LARK_APP_ID / LARK_APP_SECRET，跳过文档创建。"
-  echo "  请在 .env 中补充这两项以获得跳转按钮体验。"
-fi
-
-echo ""
-echo "2/2 推送群消息..."
-EXTRA_ARGS=(--report "$REPORT_PATH" --date "$REPORT_DATE")
-if [ -n "$DOC_URL" ]; then
-  EXTRA_ARGS+=(--doc-url "$DOC_URL")
-fi
-PYTHONPATH=src .venv/bin/python -m web3_visual_research.lark_chat_notifier "${EXTRA_ARGS[@]}"
+PYTHONPATH=src .venv/bin/python -m web3_visual_research.lark_chat_notifier \
+  --report "$REPORT_PATH" \
+  --date "$REPORT_DATE" \
+  --doc-url "$REPORT_URL"
 
 echo ""
 echo "完成。结果文件："

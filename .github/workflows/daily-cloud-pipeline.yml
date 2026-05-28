@@ -2,7 +2,6 @@ name: Daily Cloud Pipeline
 
 # 每天云端跑完整流程：生成任务单 → 调 OpenAI 写报告 → commit 回仓库 → 推 Lark 群
 # 触发时间：北京 10:00 = UTC 02:00。
-# OpenAI Responses API + web_search 平均 3-8 分钟出报告，群消息一般在 10:10 前送达。
 
 on:
   schedule:
@@ -13,10 +12,6 @@ on:
         description: "报告日期，YYYY-MM-DD；不填默认用 Asia/Shanghai 当天"
         required: false
         default: ""
-      skip_research:
-        description: "true=跳过 OpenAI 研究步骤，仅推群（用于测试）"
-        required: false
-        default: "false"
 
 jobs:
   pipeline:
@@ -50,24 +45,46 @@ jobs:
           echo "Will produce: reports/${INPUT_DATE}-web3-product-visual-trend-report.md"
 
       - name: Generate today's research brief
-        if: github.event.inputs.skip_research != 'true'
         run: |
           PYTHONPATH=src python -m web3_visual_research.cli brief --date "${{ steps.date.outputs.report_date }}"
 
       - name: Run cloud research agent (OpenAI)
-        if: github.event.inputs.skip_research != 'true'
+        id: research
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_RESEARCH_MODEL: ${{ vars.OPENAI_RESEARCH_MODEL || 'gpt-4.1-mini' }}
         run: |
           if [ -z "$OPENAI_API_KEY" ]; then
-            echo "::error::OPENAI_API_KEY 未配置。请到 Settings → Secrets 添加，跳过研究阶段会失败。"
-            exit 1
+            echo "::warning::OPENAI_API_KEY 未配置，跳过 AI 研究步骤；今日卡片将基于任务单做最小占位提示。"
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           PYTHONPATH=src python -m web3_visual_research.cloud_research_agent --date "${{ steps.date.outputs.report_date }}"
+          echo "skipped=false" >> "$GITHUB_OUTPUT"
+
+      - name: Create placeholder report (when OpenAI skipped)
+        if: steps.research.outputs.skipped == 'true'
+        run: |
+          REPORT_DATE="${{ steps.date.outputs.report_date }}"
+          REPORT_PATH="${{ steps.date.outputs.report_path }}"
+          cat > "$REPORT_PATH" <<EOF
+          # Web3 竞品产品与视觉趋势日报 - $REPORT_DATE
+
+          ## 🎯 TL;DR（30 秒读完）
+
+          - 🎨 视觉：（OpenAI API Key 未配置，今日未生成 AI 研究报告）
+          - 📦 产品：（请到 GitHub 仓库 Settings → Secrets 添加 OPENAI_API_KEY）
+          - ✅ MEXC 行动：补充 OPENAI_API_KEY 后明天会自动恢复完整研究
+
+          ## 说明
+
+          今天的任务单已生成在 \`reports/$REPORT_DATE-codex-ai-research-brief.md\`。
+
+          补充 OpenAI Key 后，云端研究 agent 会自动按任务单上网搜索、写正式报告并推送。
+          EOF
+          echo "已生成占位报告：$REPORT_PATH"
 
       - name: Commit generated reports
-        if: github.event.inputs.skip_research != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -91,26 +108,6 @@ jobs:
             exit 1
           fi
 
-      - name: Publish to Lark Doc
-        id: doc
-        if: steps.verify.outputs.found == 'true'
-        env:
-          LARK_APP_ID: ${{ secrets.LARK_APP_ID }}
-          LARK_APP_SECRET: ${{ secrets.LARK_APP_SECRET }}
-          LARK_DOMAIN: ${{ vars.LARK_DOMAIN || 'open.larksuite.com' }}
-          LARK_DOC_FOLDER_TOKEN: ${{ secrets.LARK_DOC_FOLDER_TOKEN }}
-        run: |
-          if [ -z "$LARK_APP_ID" ] || [ -z "$LARK_APP_SECRET" ]; then
-            echo "::warning::LARK_APP_ID/LARK_APP_SECRET 未配置，按钮将退回 GitHub 链接"
-            echo "doc_url=" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          DOC_URL=$(PYTHONPATH=src python -m web3_visual_research.lark_doc_publisher \
-            --report "${{ steps.date.outputs.report_path }}" \
-            --title "Web3 竞品产品与视觉趋势日报 · ${{ steps.date.outputs.report_date }}")
-          echo "Lark 文档：$DOC_URL"
-          echo "doc_url=$DOC_URL" >> "$GITHUB_OUTPUT"
-
       - name: Push to Lark group
         if: steps.verify.outputs.found == 'true'
         env:
@@ -122,13 +119,11 @@ jobs:
             echo "::error::LARK_GROUP_WEBHOOK 未配置"
             exit 1
           fi
-          DOC_URL="${{ steps.doc.outputs.doc_url }}"
-          FALLBACK_URL="https://github.com/${GITHUB_REPOSITORY}/blob/main/${{ steps.date.outputs.report_path }}"
-          ARGS=(--report "${{ steps.date.outputs.report_path }}" --date "${{ steps.date.outputs.report_date }}" --fallback-url "$FALLBACK_URL")
-          if [ -n "$DOC_URL" ]; then
-            ARGS+=(--doc-url "$DOC_URL")
-          fi
-          PYTHONPATH=src python -m web3_visual_research.lark_chat_notifier "${ARGS[@]}"
+          REPORT_URL="https://github.com/${GITHUB_REPOSITORY}/blob/main/${{ steps.date.outputs.report_path }}"
+          PYTHONPATH=src python -m web3_visual_research.lark_chat_notifier \
+            --report "${{ steps.date.outputs.report_path }}" \
+            --date "${{ steps.date.outputs.report_date }}" \
+            --doc-url "$REPORT_URL"
 
       - name: Upload artifacts
         if: always()
